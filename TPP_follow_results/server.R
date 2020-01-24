@@ -434,7 +434,7 @@ shinyServer(function(input, output, session){
     target_data_pre <- do.call("rbind", target_data_pre_list)
     
     # sessions conducted with the test accounts or without lab_IDs are excluded
-    lab_IDs_to_exclude <- c("", "18155ef201564afbb81f6a8b74aa9a033eac51ec6595510eca9606938ffaced3", "ece83ceb8611d1926746e5bb3597ed1e8cb5d336521331b31961d5c0348883cf")
+    lab_IDs_to_exclude <- c("", "18155ef201564afbb81f6a8b74aa9a033eac51ec6595510eca9606938ffaced3", "ece83ceb8611d1926746e5bb3597ed1e8cb5d336521331b31961d5c0348883cf", "bd2dd15be34863e9efb77fbddfe744382a9c62c6a497e8bcf3097a47905b905b", "fff9cb9dcc3ac735fc25a59f424e98278a731c23ccd57276d292996c2ba7784f")
     target_data <- target_data_pre[!(target_data_pre[,"laboratory_ID_code"] %in% lab_IDs_to_exclude), ]
     
     
