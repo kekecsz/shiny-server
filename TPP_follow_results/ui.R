@@ -51,7 +51,10 @@ shinyUI(
                   box(plotOutput("plot1a"))
                 ),
                 fluidRow(
-                  p("To support any model, all three Bayes Factor values need to pass the threshold")
+                  p("Note: To support any model, all three Bayes Factor values need to pass the threshold."),
+                  textOutput("warning_about_finality_1"),
+                  tags$head(tags$style("#warning_about_finality_1{color: red}")
+                  )
                 ),
                 fluidRow(
                   textOutput("text_refresh2")
@@ -82,7 +85,9 @@ shinyUI(
                   textOutput("text_loop")
                 ),
                 fluidRow(
-                  p("To support any model, all three Bayes Factor values need to pass the threshold")
+                  p("Note: To support any model, all three Bayes Factor values need to pass the threshold"),
+                  textOutput("warning_about_finality_2"),
+                  tags$head(tags$style("#warning_about_finality_2{color: red}"))
                 ),
                 fluidRow(
                   textOutput("text_refresh_test")
@@ -97,9 +102,11 @@ shinyUI(
                 ),
                 fluidRow(
                   box(plotOutput("plot1b"))
-                  ),
+                ),
                 fluidRow(
-                  p("To support any model, all three Bayes Factor values need to pass the threshold")
+                  p("Note: To support any model, all three Bayes Factor values need to pass the threshold"),
+                  textOutput("warning_about_finality_3"),
+                  tags$head(tags$style("#warning_about_finality_3{color: red}"))
                 ),
                 fluidRow(
                   textOutput("text_refresh3")
@@ -113,6 +120,11 @@ shinyUI(
                 ),
                 fluidRow(
                   box(plotOutput("plot2"))
+                ),
+                fluidRow(
+                  p("Note: Results of the Bayesian Parameter Estimation Robustness Analysis"),
+                  textOutput("warning_about_finality_4"),
+                  tags$head(tags$style("#warning_about_finality_4{color: red}"))
                 ),
                 fluidRow(
                   textOutput("text_refresh4")
@@ -131,9 +143,13 @@ shinyUI(
                   box(plotOutput("plot3"))
                 ),
                 fluidRow(
+                  textOutput("warning_about_finality_5"),
+                  tags$head(tags$style("#warning_about_finality_5{color: red}"))
+                ),
+                fluidRow(
                   textOutput("text_refresh5")
                 )
-
+                
         ),
         
         tabItem(tabName = "rmarkdown_manuscript",
