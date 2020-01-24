@@ -13,8 +13,11 @@ library(shinydashboard)
 ######################################################################
 
 library(HDInterval) # needed to calcluate HDI credible intervals in the Bayesian parameter estimation robustness test
-library(ggplot2) # for visualization
+library(ggplot2) # for plotting
 library(emdist) # to calcluate earth mover's distance (EMD)
+library(reshape2) # for melt()
+library(plyr) # for rounding during plotting
+library(lme4) # for glmer
 library(httr) # to get git folder contents
 
 ######################################################################
@@ -62,6 +65,12 @@ data_link_list = if(source_data == "pilot"){
   data_link_live
 } else {NA}
 
+# Sorts the links by file creation order starting with the oldest file
+list_of__s = lapply(strsplit(data_link_list, ''), function(x) which(x == '_'))
+list_of__s_post = sapply(list_of__s, function(x) tail(x, n=1))
+length_of_linknames = lapply(data_link_list, nchar)
+start_dates = substr(data_link_list, list_of__s_post+1, unlist(length_of_linknames)-4)
+data_link_list = data_link_list[order(as.Date(start_dates, format = "%d-%m-%Y"))]
 
 ######################################################################
 #                                                                    #
@@ -75,8 +84,10 @@ data_link_list = if(source_data == "pilot"){
 
 
 ### Functions for Bayes factor caclulation using beta prior
-# These functions are required to run the Bayes factor analysis 
-# we thank Richard Morey for his help in developing these functions
+# These functions are required to run the Bayes factor analysis
+# The custom code is necessary because we use beta priors, and 
+# the BayesFactor package by default does not have built in beta priors
+# We thank Richard Morey for his help in developing these functions!
 
 
 fullAlt_beta = Vectorize(function(p, y, N, alpha, beta){
@@ -127,6 +138,24 @@ mode_HDI <- function(scale, density, crit_width = 0.95, n_samples = 1e5){
   
   names(result) = c("mode", paste(Crit_lb*100, "%", sep = ""), paste(Crit_ub*100, "%", sep = ""))
   return(result)
+}
+
+
+
+# convert logit to probability
+# this is used for conversion of the results of the
+# logistic regression to the probability scale
+logit2prob <- function(logit){
+  odds <- exp(logit)
+  prob <- odds / (1 + odds)
+  return(prob)
+}
+
+# rule for hypothesis testing inference for Bayesian proportion tests
+BF_inference_function = function(BF){
+  if(Inference_threshold_BF_low >= BF) {return("M1")
+  } else if(Inference_threshold_BF_high <= BF) {return("M0")
+  } else {return("Inconclusive")}
 }
 
 
