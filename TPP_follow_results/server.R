@@ -15,6 +15,7 @@ library(shinydashboard)
 library(HDInterval) # needed to calcluate HDI credible intervals in the Bayesian parameter estimation robustness test
 library(ggplot2) # for visualization
 library(emdist) # to calcluate earth mover's distance (EMD)
+library(httr) # to get git folder contents
 
 ######################################################################
 #                                                                    #
@@ -22,7 +23,7 @@ library(emdist) # to calcluate earth mover's distance (EMD)
 #                                                                    #
 ######################################################################
 
-refresh_time = 10000
+refresh_time = 20000
 
 ######################################################################
 #                                                                    #
@@ -34,14 +35,24 @@ refresh_time = 10000
 # which might break the live datafile to several segments.
 
 #set where data will be read from
-source_data = "pilot"
+source_data = "live"
 
 # list of links containing each type of datasets
 # "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_pilot_results_from_13-9-2018.csv" only contains tests
 
-data_link_live = c("https://github.com/gy0p4k/transparent-psi-results/blob/master/tpp_liveresults_from_17-9-2018.csv")
-data_link_pilot = c("https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_pilot_results_from_9-7-2018.csv", "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_pilot_results_from_21-7-2018.csv", "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_pilot_results_from_17-9-2018.csv")
-data_link_test = c("https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_test_results_from_21-7-2018.csv", "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_test_results_from_7-9-2018.csv", "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_test_results_from_13-9-2018.csv", "https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/tpp_test_results_from_17-9-2018.csv")
+
+req_live <- GET("https://api.github.com/repos/gyopak/transparent-psi-results/contents/live_data")
+data_list_live = sapply(content(req_live), function(x) x$name)
+data_link_live = paste0("https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/live_data/", data_list_live)
+
+req_pilot <- GET("https://api.github.com/repos/gyopak/transparent-psi-results/contents/pilot_data")
+data_list_pilot = sapply(content(req_pilot), function(x) x$name)
+data_link_pilot = paste0("https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/pilot_data/", data_list_pilot)
+
+req_test <- GET("https://api.github.com/repos/gyopak/transparent-psi-results/contents/test_data")
+data_list_test = sapply(content(req_test), function(x) x$name)
+data_link_test = paste0("https://raw.githubusercontent.com/gy0p4k/transparent-psi-results/master/test_data/", data_list_test)
+
 
 data_link_list = if(source_data == "pilot"){
   data_link_pilot
@@ -369,7 +380,7 @@ success_proportions_theoretical <- rbinom(sim_null_participant_num, size = trial
 
 
 shinyServer(function(input, output, session){
-
+  
   
   # this object will store the data required for visualization
   values <- reactiveValues(
@@ -377,9 +388,9 @@ shinyServer(function(input, output, session){
     data_collection_status_at_latest_crucial_test = "running",
     i = 0
   )
-
   
- 
+  
+  
   
   
   
@@ -401,10 +412,23 @@ shinyServer(function(input, output, session){
     # create a single file from file segments on GitHub
     target_data_pre_list = list(NA)
     
-    # get up to date date from github
+    # get up to date data from github
     for(i in 1:length(data_link_list)){
-      target_data_pre_list[[i]] = read.csv(data_link_list[i])
-    }
+        if(substr(readLines(data_link_list[i])[1], 1, 9) == "timestamp"){target_data_pre_list[[i]] = read.csv(data_link_list[i])
+        } else {
+          target_data_pre_list[[i]] = read.csv(data_link_list[i], header = F)
+          names(target_data_pre_list[[i]]) = c("timestamp", "participant_ID", "experimenter_ID_code", "experimenter_ASGS_total_score", 
+                                               "laboratory_ID_code", "sitePI_ASGS_total_score", "session_type", "consent_screen_answer",
+                                               "refused_to_answer_sexual_orientation_question", "age", "sex", "final_consent", 
+                                               "ESP_Q_item_1", "ESP_Q_item_2", "ESP_Q_item_3", "SS_Q_item_1" , "SS_Q_item_2", "trial_number",
+                                               "guessed_side", "target_side", "reward_type", "sides_match")    
+        }
+      }
+
+    
+
+    
+
     
     #collapse data sheets from different urls into one data frame
     target_data_pre <- do.call("rbind", target_data_pre_list)
@@ -412,14 +436,14 @@ shinyServer(function(input, output, session){
     # sessions conducted with the test accounts or without lab_IDs are excluded
     lab_IDs_to_exclude <- c("", "18155ef201564afbb81f6a8b74aa9a033eac51ec6595510eca9606938ffaced3", "ece83ceb8611d1926746e5bb3597ed1e8cb5d336521331b31961d5c0348883cf")
     target_data <- target_data_pre[!(target_data_pre[,"laboratory_ID_code"] %in% lab_IDs_to_exclude), ]
-
-
+    
+    
     if(source_data == "pilot"){   
       # these sessions were test sessions even though they were conducted with a valid experimenter ID and as pilot session type, so they are excluded
       participant_IDs_to_exclude <- c("5e45139f-e642-4539-8958-6906c3f6b9c6", "2a8349db-4868-44b9-853f-9c7205d834d2")
       target_data <- target_data[!(target_data[,"participant_ID"] %in% participant_IDs_to_exclude), ]
     }
-
+    
     
     # Number of participants tested in the pilot test
     sample_size_participants_started_session = length(unique(target_data[, "participant_ID"]))
@@ -429,7 +453,7 @@ shinyServer(function(input, output, session){
     data_BF = target_data[!is.na(target_data[, "trial_number"]) & target_data[, "reward_type"] == "erotic", ]
     
     data_BF[,"participant_ID"] = droplevels(data_BF[,"participant_ID"])
-
+    
     #if the stopping rule was reached at the latest crucial test, than omit data collected after the latest crucial test
     if(values$data_collection_status_at_latest_crucial_test == "stopped"){
       data_BF = data_BF[1:values$latest_crucial_test_at,]
@@ -442,11 +466,11 @@ shinyServer(function(input, output, session){
     
     # total number of valid erotic trials
     values$total_N = nrow(data_BF)
-
+    
     # number of missing trials (data points)
     data_BF_split_by_participants = split(data_BF, f = data_BF[,"participant_ID"])
     values$total_missing_trials = sum(sapply(data_BF_split_by_participants, function(x) trial_size_per_participant-nrow(x)))
-
+    
     
     
     # latest interim analysis point
@@ -461,10 +485,10 @@ shinyServer(function(input, output, session){
     
     
   })    
-    
-    
-    
-    
+  
+  
+  
+  
   
   
   
@@ -475,22 +499,22 @@ shinyServer(function(input, output, session){
     # Main confirmatory analysis and robustness analyses using the current data
     
     list_result_mainanalysis_current = ConfirmatoryAnalysisFunction(data_BF = values$data_BF,
-                                                            total_N = values$total_N,
-                                                             trial_size_per_participant = trial_size_per_participant,
-                                                             M0_prob = M0_prob,
-                                                             when_to_check = when_to_check,
-                                                             Inference_threshold_BF_high = Inference_threshold_BF_high,
-                                                             Inference_threshold_BF_low = Inference_threshold_BF_low,
-                                                             y_prior = y_prior,
-                                                             N_prior = N_prior,
-                                                             minimum_effect_threshold_NHST = minimum_effect_threshold_NHST,
-                                                             Inference_threshold_robustness_NHST = Inference_threshold_robustness_NHST,
-                                                             minimum_effect_threshold_Bayes_Par_Est = minimum_effect_threshold_Bayes_Par_Est,
-                                                             Inference_threshold_robustness_Bayes_Par_Est = Inference_threshold_robustness_Bayes_Par_Est,
-                                                             ROPE = ROPE,
-                                                             scale = scale)
-                  
-
+                                                                    total_N = values$total_N,
+                                                                    trial_size_per_participant = trial_size_per_participant,
+                                                                    M0_prob = M0_prob,
+                                                                    when_to_check = when_to_check,
+                                                                    Inference_threshold_BF_high = Inference_threshold_BF_high,
+                                                                    Inference_threshold_BF_low = Inference_threshold_BF_low,
+                                                                    y_prior = y_prior,
+                                                                    N_prior = N_prior,
+                                                                    minimum_effect_threshold_NHST = minimum_effect_threshold_NHST,
+                                                                    Inference_threshold_robustness_NHST = Inference_threshold_robustness_NHST,
+                                                                    minimum_effect_threshold_Bayes_Par_Est = minimum_effect_threshold_Bayes_Par_Est,
+                                                                    Inference_threshold_robustness_Bayes_Par_Est = Inference_threshold_robustness_Bayes_Par_Est,
+                                                                    ROPE = ROPE,
+                                                                    scale = scale)
+    
+    
     
     
     
@@ -521,21 +545,21 @@ shinyServer(function(input, output, session){
     
     if(!is.na(values$latest_crucial_test_at)){
       list_result_mainanalysis_at_latest_crucial_test = ConfirmatoryAnalysisFunction(data_BF = values$data_BF[1:values$latest_crucial_test_at,],
-                                                                    total_N = values$latest_crucial_test_at,
-                                                                    trial_size_per_participant = trial_size_per_participant,
-                                                                    M0_prob = M0_prob,
-                                                                    when_to_check = when_to_check,
-                                                                    Inference_threshold_BF_high = Inference_threshold_BF_high,
-                                                                    Inference_threshold_BF_low = Inference_threshold_BF_low,
-                                                                    y_prior = y_prior,
-                                                                    N_prior = N_prior,
-                                                                    minimum_effect_threshold_NHST = minimum_effect_threshold_NHST,
-                                                                    Inference_threshold_robustness_NHST = Inference_threshold_robustness_NHST,
-                                                                    minimum_effect_threshold_Bayes_Par_Est = minimum_effect_threshold_Bayes_Par_Est,
-                                                                    Inference_threshold_robustness_Bayes_Par_Est = Inference_threshold_robustness_Bayes_Par_Est,
-                                                                    ROPE = ROPE,
-                                                                    scale = scale)
-    
+                                                                                     total_N = values$latest_crucial_test_at,
+                                                                                     trial_size_per_participant = trial_size_per_participant,
+                                                                                     M0_prob = M0_prob,
+                                                                                     when_to_check = when_to_check,
+                                                                                     Inference_threshold_BF_high = Inference_threshold_BF_high,
+                                                                                     Inference_threshold_BF_low = Inference_threshold_BF_low,
+                                                                                     y_prior = y_prior,
+                                                                                     N_prior = N_prior,
+                                                                                     minimum_effect_threshold_NHST = minimum_effect_threshold_NHST,
+                                                                                     Inference_threshold_robustness_NHST = Inference_threshold_robustness_NHST,
+                                                                                     minimum_effect_threshold_Bayes_Par_Est = minimum_effect_threshold_Bayes_Par_Est,
+                                                                                     Inference_threshold_robustness_Bayes_Par_Est = Inference_threshold_robustness_Bayes_Par_Est,
+                                                                                     ROPE = ROPE,
+                                                                                     scale = scale)
+      
       
       
       inference_BF_at_latest_crucial_test = list_result_mainanalysis_at_latest_crucial_test[["inference_BF"]]
@@ -563,21 +587,21 @@ shinyServer(function(input, output, session){
       
       
     }
-
+    
     ######################################################################
     #                                                                    #
     #                 Report of confirmatory analysis                    #
     #                                                                    #
     ######################################################################
-
-
+    
+    
     
     general_text_first_part = paste("The following information reflects ", source_data, " study sessions. The study currently has ", values$total_N, " erotic trials gathered from a total of ",
-                         values$sample_size_participants_atleast1erotictrial, " participants.", " There has been ", values$total_missing_trials, " (", round(values$total_missing_trials/values$total_N*100,2),"%) missing data points due to incomplete sessions.", 
-                         " We observed a total of ", round(mean(values$sides_match_current), 4)*100, "% successful guesses within ",
-                         values$total_N, " erotic trials (99.5% CI = ", values$proportion_995CI_current[1]*100, "%", ", ", values$proportion_995CI_current[2]*100, "%", 
-                         "; posterior mode = ", values$hdi_result_current[1]*100, "%", ", posterior 90% HDI = ", values$HDI_lb_current*100, "%", ", ",
-                         values$HDI_ub_current*100, "%", ").", sep = "")
+                                    values$sample_size_participants_atleast1erotictrial, " participants.", " There has been ", values$total_missing_trials, " (", round(values$total_missing_trials/values$total_N*100,2),"%) missing data points due to incomplete sessions.", 
+                                    " We observed a total of ", round(mean(values$sides_match_current), 4)*100, "% successful guesses within ",
+                                    values$total_N, " erotic trials (99.5% CI = ", values$proportion_995CI_current[1]*100, "%", ", ", values$proportion_995CI_current[2]*100, "%", 
+                                    "; posterior mode = ", values$hdi_result_current[1]*100, "%", ", posterior 90% HDI = ", values$HDI_lb_current*100, "%", ", ",
+                                    values$HDI_ub_current*100, "%", ").", sep = "")
     
     general_text_second_half = if(values$inference_BF_current == "M1"){
       paste(" Observing this success rate is ", round(1/max(c(values$BF_replication_current, values$BF_uniform_current, values$BF_BUJ_current)),0),
@@ -610,9 +634,9 @@ shinyServer(function(input, output, session){
     
     
     final_text = paste(general_text_first_part, general_text_second_half, robustness_text, stopping_text, sep = "")
-
-                    
-
+    
+    
+    
     
     
     ######################################################################
@@ -676,7 +700,7 @@ shinyServer(function(input, output, session){
     
     # earth mover's distance
     emd = emd2d(success_rates_theoretical_prop,success_rates_empirical_prop)
-
+    
     
     
     
@@ -686,19 +710,26 @@ shinyServer(function(input, output, session){
     values$final_text = final_text
     values$emd = emd # this still needs to be integreted into the result visualization
     values$histogram_plot_data = histogram_plot_data
-    
+    values$warning_about_finality_1 = if(values$data_collection_status_at_latest_crucial_test == "running"){
+      paste("The results are not yet final! Data presented on this page represent the current trend calculated from the data. The results should not be over-interpreted! Random variations may cause the data to cross the decision thresholds. Statistical decisions will only be drawn at the pre-specified stopping points. The next stopping point will be at reaching ", 
+            values$next_crucial_test_at, " erotic trials.", sep = "")    
+    } else if(values$data_collection_status_at_latest_crucial_test == "stopped"){"These are the final results! Data collection stopped because one of the stopping rules has been triggered."}
+    values$warning_about_finality_2 = values$warning_about_finality_1
+    values$warning_about_finality_3 = values$warning_about_finality_1
+    values$warning_about_finality_4 = values$warning_about_finality_1
+    values$warning_about_finality_5 = values$warning_about_finality_1
   })
   
   
   
   
-
+  
   
   output$text_refresh1 <- renderText({
     invalidateLater(refresh_time)
     
     paste("The data on this page was last refreshed at:  ", Sys.time(), "  (time zone:  ", Sys.timezone(), " ).", sep = "")
-
+    
   })
   
   output$text_refresh2 <- renderText({
@@ -708,7 +739,7 @@ shinyServer(function(input, output, session){
     
   })
   
-
+  
   output$text_refresh3 <- renderText({
     invalidateLater(refresh_time)
     
@@ -737,10 +768,42 @@ shinyServer(function(input, output, session){
   
   
   output$text_summary <- renderText({
-     
+    
     values$final_text
     
   })
+  
+  output$warning_about_finality_1 <- renderText({
+    
+    values$warning_about_finality_1
+    
+  })
+  
+  output$warning_about_finality_2 <- renderText({
+    
+    values$warning_about_finality_2
+    
+  })
+  
+  
+  output$warning_about_finality_3 <- renderText({
+    
+    values$warning_about_finality_3
+    
+  })
+  
+  output$warning_about_finality_4 <- renderText({
+    
+    values$warning_about_finality_4
+    
+  })
+  
+  output$warning_about_finality_5 <- renderText({
+    
+    values$warning_about_finality_5
+    
+  })
+  
   
   
   output$text_refresh_rate <- renderText({
@@ -748,10 +811,10 @@ shinyServer(function(input, output, session){
     paste("the data is refreshed every ", refresh_time/1000, " seconds", sep = "")
     
   })
-
   
   
-
+  
+  
   sliderValues <- reactiveValues(
     
     loop_N = 40
@@ -760,8 +823,8 @@ shinyServer(function(input, output, session){
   
   
   observe({
-
-   updateSliderInput(session, "loop_slider", value = nrow(values$data_BF), max = nrow(values$data_BF))
+    
+    updateSliderInput(session, "loop_slider", value = nrow(values$data_BF), max = nrow(values$data_BF))
   })
   
   
@@ -769,51 +832,51 @@ shinyServer(function(input, output, session){
   
   
   observe({
-
     
-      list_result_mainanalysis_loop = ConfirmatoryAnalysisFunction(data_BF = values$data_BF[1:(input$loop_slider),],
-                                                                   total_N = input$loop_slider,
-                                                                   trial_size_per_participant = trial_size_per_participant,
-                                                                   M0_prob = M0_prob,
-                                                                   when_to_check = when_to_check,
-                                                                   Inference_threshold_BF_high = Inference_threshold_BF_high,
-                                                                   Inference_threshold_BF_low = Inference_threshold_BF_low,
-                                                                   y_prior = y_prior,
-                                                                   N_prior = N_prior,
-                                                                   minimum_effect_threshold_NHST = minimum_effect_threshold_NHST,
-                                                                   Inference_threshold_robustness_NHST = Inference_threshold_robustness_NHST,
-                                                                   minimum_effect_threshold_Bayes_Par_Est = minimum_effect_threshold_Bayes_Par_Est,
-                                                                   Inference_threshold_robustness_Bayes_Par_Est = Inference_threshold_robustness_Bayes_Par_Est,
-                                                                   ROPE = ROPE,
-                                                                   scale = scale)
-      
-      
-      
-      
-      
-      values$sides_match_loop = list_result_mainanalysis_loop[["sides_match"]]
-      values$proportion_995CI_loop = list_result_mainanalysis_loop[["proportion_995CI"]]
-      values$hdi_result_loop = list_result_mainanalysis_loop[["hdi_result"]]
-      values$inference_BF_loop = list_result_mainanalysis_loop[["inference_BF"]]
-      values$BF_replication_loop = list_result_mainanalysis_loop[["BF_replication"]]
-      values$BF_uniform_loop = list_result_mainanalysis_loop[["BF_uniform"]]
-      values$BF_BUJ_loop = list_result_mainanalysis_loop[["BF_BUJ"]]
-      values$HDI_lb_loop = list_result_mainanalysis_loop[["HDI_lb"]]
-      values$HDI_ub_loop = list_result_mainanalysis_loop[["HDI_ub"]]
-      values$Robust_loop = list_result_mainanalysis_loop[["Robust"]]
-      values$posterior_density_loop = list_result_mainanalysis_loop[["posterior_density"]]
-      
-      
-      # dataframe used for the visualization of main confirmatory analysis results
-      BF_results_for_plotting_loop = cbind(as.data.frame(c(list_result_mainanalysis_loop[["BF_replication"]], list_result_mainanalysis_loop[["BF_uniform"]], list_result_mainanalysis_loop[["BF_BUJ"]])), c("BF_replication", "BF_uniform", "BF_BUJ"))
-      names(BF_results_for_plotting_loop) = c("Bayes_factor_01", "BF_type")
-      
-      
-      values$BF_results_for_plotting_loop = BF_results_for_plotting_loop
-      
-      
-      values$loop_N = input$loop_slider
-      
+    
+    list_result_mainanalysis_loop = ConfirmatoryAnalysisFunction(data_BF = values$data_BF[1:(input$loop_slider),],
+                                                                 total_N = input$loop_slider,
+                                                                 trial_size_per_participant = trial_size_per_participant,
+                                                                 M0_prob = M0_prob,
+                                                                 when_to_check = when_to_check,
+                                                                 Inference_threshold_BF_high = Inference_threshold_BF_high,
+                                                                 Inference_threshold_BF_low = Inference_threshold_BF_low,
+                                                                 y_prior = y_prior,
+                                                                 N_prior = N_prior,
+                                                                 minimum_effect_threshold_NHST = minimum_effect_threshold_NHST,
+                                                                 Inference_threshold_robustness_NHST = Inference_threshold_robustness_NHST,
+                                                                 minimum_effect_threshold_Bayes_Par_Est = minimum_effect_threshold_Bayes_Par_Est,
+                                                                 Inference_threshold_robustness_Bayes_Par_Est = Inference_threshold_robustness_Bayes_Par_Est,
+                                                                 ROPE = ROPE,
+                                                                 scale = scale)
+    
+    
+    
+    
+    
+    values$sides_match_loop = list_result_mainanalysis_loop[["sides_match"]]
+    values$proportion_995CI_loop = list_result_mainanalysis_loop[["proportion_995CI"]]
+    values$hdi_result_loop = list_result_mainanalysis_loop[["hdi_result"]]
+    values$inference_BF_loop = list_result_mainanalysis_loop[["inference_BF"]]
+    values$BF_replication_loop = list_result_mainanalysis_loop[["BF_replication"]]
+    values$BF_uniform_loop = list_result_mainanalysis_loop[["BF_uniform"]]
+    values$BF_BUJ_loop = list_result_mainanalysis_loop[["BF_BUJ"]]
+    values$HDI_lb_loop = list_result_mainanalysis_loop[["HDI_lb"]]
+    values$HDI_ub_loop = list_result_mainanalysis_loop[["HDI_ub"]]
+    values$Robust_loop = list_result_mainanalysis_loop[["Robust"]]
+    values$posterior_density_loop = list_result_mainanalysis_loop[["posterior_density"]]
+    
+    
+    # dataframe used for the visualization of main confirmatory analysis results
+    BF_results_for_plotting_loop = cbind(as.data.frame(c(list_result_mainanalysis_loop[["BF_replication"]], list_result_mainanalysis_loop[["BF_uniform"]], list_result_mainanalysis_loop[["BF_BUJ"]])), c("BF_replication", "BF_uniform", "BF_BUJ"))
+    names(BF_results_for_plotting_loop) = c("Bayes_factor_01", "BF_type")
+    
+    
+    values$BF_results_for_plotting_loop = BF_results_for_plotting_loop
+    
+    
+    values$loop_N = input$loop_slider
+    
   })
   
   
@@ -822,15 +885,15 @@ shinyServer(function(input, output, session){
     paste("Bayes Factor results after ", values$loop_N, " trials", sep = "")
     
   })
-
   
   
-
+  
+  
   
   
   output$plot1a <- renderPlot({
-
-
+    
+    
     
     plot_main_conf_anal <- ggplot(values$BF_results_for_plotting_current, aes(y = Bayes_factor_01, x = BF_type))+
       geom_point()+
@@ -841,7 +904,7 @@ shinyServer(function(input, output, session){
       scale_y_log10(limits = c(0.005,200), breaks=c(0.01, Inference_threshold_BF_low, 0.1, 0.33, 0, 3, 10, Inference_threshold_BF_high, 100))+
       geom_hline(yintercept = c(Inference_threshold_BF_low, Inference_threshold_BF_high), linetype = "dashed")+
       geom_text(aes(x=0.5, y=c(100, 1, 0.01), label=c("Supports M0", "Inconclusive", "Supports M1"), angle = 270))
- 
+    
     print(plot_main_conf_anal)
   })
   
@@ -853,7 +916,7 @@ shinyServer(function(input, output, session){
   
   
   output$plot1b <- renderPlot({
-
+    
     plot_main_conf_anal <- ggplot(values$BF_results_for_plotting_current, aes(y = Bayes_factor_01, x = BF_type))+
       geom_point()+
       geom_rect(aes(xmin=-Inf, xmax=Inf, ymin=c(Inference_threshold_BF_high), ymax=c(Inf)), alpha = 0.2, fill=c("pink"))+
@@ -864,7 +927,7 @@ shinyServer(function(input, output, session){
       geom_hline(yintercept = c(Inference_threshold_BF_low, Inference_threshold_BF_high), linetype = "dashed")+
       geom_text(aes(x=0.5, y=c(100, 1, 0.01), label=c("Supports M0", "Inconclusive", "Supports M1"), angle = 270))
     
-
+    
     print(plot_main_conf_anal)
   })
   
@@ -893,7 +956,7 @@ shinyServer(function(input, output, session){
   
   
   output$plot2 <- renderPlot({
-   
+    
     # plot results of the Bayesian parameter estimation used as a robustness test
     plot(scale, values$posterior_density_current, type="l", lty=1, xlab="x value", xlim = c(0.45, 0.55),
          ylab="Density")
@@ -914,7 +977,7 @@ shinyServer(function(input, output, session){
   
   
   
-
+  
   
   output$plot3 <- renderPlot({
     
@@ -936,10 +999,10 @@ shinyServer(function(input, output, session){
     print(figure_1)
   })
   
- 
   
   
- 
+  
+  
   
   
   
@@ -959,7 +1022,7 @@ shinyServer(function(input, output, session){
     plot(values$df, ylim = c(0,10))
   })
   
-
+  
   
   
   
