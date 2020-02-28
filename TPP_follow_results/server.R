@@ -239,9 +239,9 @@ ConfirmatoryAnalysisFunction <- function(data_BF,
   # determine inference (supported model) based on the Bayes factors calculated above  
   if(Inference_threshold_BF_low >= max(c(BF_replication, BF_uniform, BF_BUJ))) {
     inference_BF = "M1"
-    break} else if(Inference_threshold_BF_high <= min(c(BF_replication, BF_uniform, BF_BUJ))) {
+    } else if(Inference_threshold_BF_high <= min(c(BF_replication, BF_uniform, BF_BUJ))) {
       inference_BF = "M0"
-      break} else {inference_BF = "Inconclusive"}
+      } else {inference_BF = "Inconclusive"}
   
   
   ##################################################
@@ -356,7 +356,7 @@ trial_size_per_participant = 18
 M0_prob = 0.5
 
 # interim analysis points (in total number of erotic trials performed)
-when_to_check = c(30060, 37836, 45612, 53406, 61182, 68958, 76734, 84528, 92304, 100080)
+when_to_check = c(37836, 62388, 86958, 111528, 136080)
 
 # thresholds to infer support for M0 (high) or M1 (low)
 Inference_threshold_BF_high = 25
