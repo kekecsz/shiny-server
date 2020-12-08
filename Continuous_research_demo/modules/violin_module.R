@@ -26,7 +26,7 @@ violin_module <- function(input, output, session, data){
 
 violin_plot <- function(data){
   
-  temp %>%
+  data %>%
     ggplot() +
     aes(y = Height, x = Gender) +
     geom_violin(aes(fill = Gender)) +
