@@ -7,7 +7,7 @@ library(BayesFactor)
 library(gsheet)
 
 
-setwd("C:/Users/kekec/Dropbox/_Real_time")
+# setwd("C:/Users/kekec/Dropbox/_Real_time")
 
 
 source("Continuous_research_demo/modules/scatter_module.R")
